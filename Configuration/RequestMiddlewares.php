@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Subugoe\TypoCap\Middleware\CapTokenVerifierMiddleware;
+use Subugoe\Typo3Cap\Middleware\CapTokenVerifierMiddleware;
 
 return [
     'frontend' => [
-        'subugoe/typo-cap/token-verifier' => [
+        'subugoe/typo3-cap/token-verifier' => [
             'target' => CapTokenVerifierMiddleware::class,
             'after' => [
                 'typo3/cms-frontend/site',

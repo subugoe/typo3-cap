@@ -2,8 +2,8 @@
 (function () {
     'use strict';
 
-    var script = document.getElementById('typo-cap-handler');
-    if (!script || window.TypoCap) return;
+    var script = document.getElementById('typo3-cap-handler');
+    if (!script || window.Typo3Cap) return;
     var config = JSON.parse(script.getAttribute('data-config'));
 
     var cookieName = config.cookieName;
@@ -128,7 +128,7 @@
     function background() {
         if (suspended || document.hidden) return;
         prepare().catch(function (error) {
-            console.warn('[TypoCap] Background challenge failed:', error);
+            console.warn('[Typo3Cap] Background challenge failed:', error);
             scheduleRenewal(15000);
         });
     }
@@ -139,12 +139,12 @@
     }
 
     function showError(retry) {
-        var spinner = document.getElementById('typo-cap-spinner');
+        var spinner = document.getElementById('typo3-cap-spinner');
         if (spinner) spinner.hidden = true;
-        var message = document.getElementById('typo-cap-error');
+        var message = document.getElementById('typo3-cap-error');
         if (!message) {
             message = document.createElement('p');
-            message.id = 'typo-cap-error';
+            message.id = 'typo3-cap-error';
             message.setAttribute('role', 'alert');
             document.body.appendChild(message);
         }
@@ -169,7 +169,7 @@
             action();
         }).catch(function (error) {
             navigating = false;
-            console.warn('[TypoCap] Navigation challenge failed:', error);
+            console.warn('[Typo3Cap] Navigation challenge failed:', error);
             showError(function () { navigate(action); });
         });
     }
@@ -195,20 +195,20 @@
         var checks = new Map();
         var batches = new Map();
         var queue = Promise.resolve();
-        var tokenHeader = 'X-Typo-Cap-Token';
+        var tokenHeader = 'X-Typo3-Cap-Token';
 
         function needsProof(href) {
             var url = sameOriginUrl(href);
-            if (!url || ['captcha_proxy', 'typo_cap_asset'].includes(url.searchParams.get('eID'))) {
+            if (!url || ['captcha_proxy', 'typo3_cap_asset'].includes(url.searchParams.get('eID'))) {
                 return Promise.resolve(false);
             }
             url.hash = '';
             if (!checks.has(url.href)) {
                 // A probe never reaches the application or consumes a cookie.
                 checks.set(url.href, nativeFetch(url.href, {
-                    method: 'HEAD', headers: { 'X-Typo-Cap-Probe': '1' }, cache: 'no-store'
+                    method: 'HEAD', headers: { 'X-Typo3-Cap-Probe': '1' }, cache: 'no-store'
                 }).then(function (response) {
-                    return response.headers.get('X-Typo-Cap-Required') === '1';
+                    return response.headers.get('X-Typo3-Cap-Required') === '1';
                 }).catch(function (error) {
                     checks.delete(url.href);
                     throw error;
@@ -247,7 +247,7 @@
 
         function prepareRequest(href, method, cancelled) {
             var url = sameOriginUrl(href);
-            if (!url || ['captcha_proxy', 'typo_cap_asset'].includes(url.searchParams.get('eID'))) {
+            if (!url || ['captcha_proxy', 'typo3_cap_asset'].includes(url.searchParams.get('eID'))) {
                 return Promise.resolve(null);
             }
             var key = String(method).toUpperCase() + ' ' + url.pathname;
@@ -330,7 +330,7 @@
                 if (cancelled()) return;
                 states.delete(xhr);
                 abort.call(xhr);
-                console.warn('[TypoCap] Request challenge failed:', error);
+                console.warn('[Typo3Cap] Request challenge failed:', error);
                 xhr.dispatchEvent(new ProgressEvent('error'));
                 xhr.dispatchEvent(new ProgressEvent('loadend'));
             });
@@ -422,12 +422,12 @@
             writeCookie(retryCookie, String((Number(readCookie(retryCookie)) || 0) + 1), 120);
             window.location.reload();
         }).catch(function (error) {
-            console.warn('[TypoCap] Initial challenge failed:', error);
+            console.warn('[Typo3Cap] Initial challenge failed:', error);
             showError(openChallengePage);
         });
     }
 
-    window.TypoCap = { prepare: prepare };
+    window.Typo3Cap = { prepare: prepare };
     if (!config.challengePage) {
         setupRequests();
         setupNavigation();

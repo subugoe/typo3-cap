@@ -1,6 +1,8 @@
-# Typo CAP
+# TYPO3 CAP
 
 TYPO3 middleware that requires a [Cap](https://capjs.js.org/guide/) proof-of-work token for each navigation to configured paths. An ordinary first visit briefly shows a loading page. Each rendered page then prepares the next token invisibly, so subsequent navigation can start immediately.
+
+Composer package: `subugoe/typo3-cap`. TYPO3 extension key: `typo3_cap`.
 
 ## How it works
 
@@ -18,7 +20,7 @@ The handler uses [Cap's programmatic mode](https://capjs.js.org/guide/programmat
 Each setting uses this precedence: **root-page Page TSconfig → environment variable → default**. As a TYPO3 administrator, edit the site's root page under **Page properties → Resources → Page TSconfig** and add the settings you want to override:
 
 ```typoscript
-tx_typocap {
+tx_typo3cap {
     enabled = 1
     siteKey = your-site-key
     serviceUrl = http://cap:3000
@@ -42,7 +44,7 @@ The service URL is reachable from PHP; browsers use the extension's same-origin 
 
 `CAP_PROTECTED_PATHS` accepts comma-separated prefixes or `#`-delimited PCRE expressions, e.g. `#/members/.*#/#/conference/.*#`. An empty value disables protection. When enabled with protected paths, missing keys return 503 instead of silently allowing access.
 
-All Page TSconfig keys below use the prefix `tx_typocap.`:
+All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 
 | Environment variable | Page TSconfig key | Default |
 | --- | --- | --- |
@@ -51,12 +53,12 @@ All Page TSconfig keys below use the prefix `tx_typocap.`:
 | `CAP_SECRET_KEY` | `secretKey` | empty |
 | `CAP_SERVICE_URL` | `serviceUrl` | `http://cap:3000` |
 | `CAP_PROTECTED_PATHS` | `protectedPaths` | empty |
-| `CAP_COOKIE_NAME` | `cookieName` | `typo_cap_token` |
+| `CAP_COOKIE_NAME` | `cookieName` | `typo3_cap_token` |
 | `CAP_TIMEOUT` | `timeout` | 5 seconds per upstream request |
 | `CAP_TOKEN_TTL` | `tokenTtl` | 300 seconds |
 | `CAP_NAVIGATION_TTL` | `navigationTtl` | 10 seconds (1–30 allowed) |
 | `CAP_WIDGET_URL` | `widgetUrl` | pinned `@cap.js/widget@0.1.57` on jsDelivr |
-| `CAP_HANDLER_PATH` | `handlerPath` | extension-served `?eID=typo_cap_asset&v=8` |
+| `CAP_HANDLER_PATH` | `handlerPath` | extension-served `?eID=typo3_cap_asset&v=1` |
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
 
@@ -83,7 +85,7 @@ Redirects with status 301, 302, 303, 307, or 308 are followed using the navigati
 For programmatic navigation in older browsers, or code that submits a POST form directly with `form.submit()` (which skips submit events), prepare the cookie explicitly:
 
 ```js
-await window.TypoCap.prepare();
+await window.Typo3Cap.prepare();
 window.location.assign('/protected/next-page');
 ```
 
@@ -91,6 +93,6 @@ Same-origin `fetch` and asynchronous `XMLHttpRequest` calls (including jQuery AJ
 
 Protected background requests started together in one event share a challenge when their path and method match. For example, a graph's count and distribution POSTs use one proof even when their query parameters differ. Groups contain at most four requests; later events or additional requests get a fresh proof. The server enforces the same path, method, request limit, and fixed `CAP_NAVIGATION_TTL` expiry. Repeated requests also consume a slot; actual redirects retain the existing continuation rules.
 
-The shared token travels in `X-Typo-Cap-Token`, without consuming or overwriting navigation cookies. Solving is queued with one worker, while the HTTP requests can run concurrently. POST bodies and response handling are preserved. Failed preparation rejects the fetch promise or fires an XHR error; POSTs are not automatically retried. Synchronous XHR and requests from workers are not intercepted. A rejected API request returns `403 {"error":"cap_required"}`.
+The shared token travels in `X-Typo3-Cap-Token`, without consuming or overwriting navigation cookies. Solving is queued with one worker, while the HTTP requests can run concurrently. POST bodies and response handling are preserved. Failed preparation rejects the fetch promise or fires an XHR error; POSTs are not automatically retried. Synchronous XHR and requests from workers are not intercepted. A rejected API request returns `403 {"error":"cap_required"}`.
 
 A direct navigation before proof is ready, an expired continuation, or requests exceeding the duplicate/redirect allowances can still require the initial challenge page. Ordinary background failures stay unobtrusive. Navigation failures offer a retry button, and consecutive rejected solves stop after two automatic retries. Neither PHP sessions nor browser storage are required; cookies and JavaScript are required.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Subugoe\TypoCap\Service;
+namespace Subugoe\Typo3Cap\Service;
 
 use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\Utils;
@@ -18,15 +18,15 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 final class NavigationProofService
 {
     public const MAX_AJAX_REQUESTS = 10;
-    private const CACHE_PREFIX = 'typo_cap_navigation_';
+    private const CACHE_PREFIX = 'typo3_cap_navigation_';
     private const MAX_REDIRECTS = 5;
 
     public function authorize(ServerRequestInterface $request, array $settings, bool $protected, callable $verify): ?string
     {
         $cookies = $request->getCookieParams();
         // Background requests carry their own proof and never borrow navigation cookies.
-        $headerProof = $request->hasHeader('X-Typo-Cap-Token');
-        $token = $headerProof ? $request->getHeaderLine('X-Typo-Cap-Token') : ($cookies[$settings['cookieName']] ?? '');
+        $headerProof = $request->hasHeader('X-Typo3-Cap-Token');
+        $token = $headerProof ? $request->getHeaderLine('X-Typo3-Cap-Token') : ($cookies[$settings['cookieName']] ?? '');
         $receipt = $headerProof ? '' : ($cookies[$settings['cookieName'] . '_navigation'] ?? '');
         $scope = hash('sha256', json_encode([
             $settings['serviceUrl'], $settings['siteKey'], $settings['secretKey'],
@@ -34,7 +34,7 @@ final class NavigationProofService
         ], JSON_THROW_ON_ERROR));
         if (is_string($token) && $token !== '') {
             $identifier = self::CACHE_PREFIX . hash_hmac('sha256', $token, $scope);
-        } elseif (is_string($receipt) && preg_match('/^typo_cap_navigation_[a-f0-9]{64}$/D', $receipt)) {
+        } elseif (is_string($receipt) && preg_match('/^typo3_cap_navigation_[a-f0-9]{64}$/D', $receipt)) {
             $identifier = $receipt;
             $token = '';
         } else {
@@ -141,7 +141,7 @@ final class NavigationProofService
 
     private function update(string $identifier, callable $operation): mixed
     {
-        $lock = GeneralUtility::makeInstance(LockFactory::class)->createLocker('typo-cap-navigation-' . substr($identifier, -2));
+        $lock = GeneralUtility::makeInstance(LockFactory::class)->createLocker('typo3-cap-navigation-' . substr($identifier, -2));
         if (!$lock->acquire()) {
             throw new \RuntimeException('Could not lock navigation proof');
         }
@@ -156,7 +156,7 @@ final class NavigationProofService
             if ($state !== $previous) {
                 // Typo3 measures TTLs from request start; never extend the original expiry.
                 $start = min(time(), (int) ($GLOBALS['EXEC_TIME'] ?? time()));
-                $cache->set($identifier, $state, ['typo_cap_navigation'], max(1, $state['expires'] - $start));
+                $cache->set($identifier, $state, ['typo3_cap_navigation'], max(1, $state['expires'] - $start));
             }
             return $result;
         } finally {

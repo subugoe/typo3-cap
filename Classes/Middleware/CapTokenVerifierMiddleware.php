@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Subugoe\TypoCap\Middleware;
+namespace Subugoe\Typo3Cap\Middleware;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Subugoe\TypoCap\Service\NavigationProofService;
+use Subugoe\Typo3Cap\Service\NavigationProofService;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Http\HtmlResponse;
 use TYPO3\CMS\Core\Http\JsonResponse;
@@ -27,7 +27,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $eID = $request->getQueryParams()['eID'] ?? '';
-        if ($eID === 'typo_cap_asset') {
+        if ($eID === 'typo3_cap_asset') {
             return $this->serveHandler($request);
         }
 
@@ -36,15 +36,15 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             return $this->handleProxyRequest($request, $settings);
         }
         $protected = $settings['enabled'] && $this->isPathProtected($request->getUri()->getPath(), $settings);
-        if ($request->getMethod() === 'HEAD' && $request->getHeaderLine('X-Typo-Cap-Probe') === '1') {
+        if ($request->getMethod() === 'HEAD' && $request->getHeaderLine('X-Typo3-Cap-Probe') === '1') {
             // Decide in PHP so AJAX uses the same site settings and PCRE rules.
-            return $this->noStore(new HtmlResponse('', 204, ['X-Typo-Cap-Required' => $protected ? '1' : '0']));
+            return $this->noStore(new HtmlResponse('', 204, ['X-Typo3-Cap-Required' => $protected ? '1' : '0']));
         }
         if (!$settings['enabled'] || $settings['protectedPaths'] === '') {
             return $handler->handle($request);
         }
 
-        $headerProof = $request->hasHeader('X-Typo-Cap-Token');
+        $headerProof = $request->hasHeader('X-Typo3-Cap-Token');
         if ($protected && ($settings['siteKey'] === '' || $settings['secretKey'] === '')) {
             return $this->noStore(new HtmlResponse('Bot protection is temporarily unavailable. Please try again later.', 503));
         }
@@ -53,7 +53,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
                 $request, $settings, $protected, fn (string $token): bool => $this->verifyToken($token, $settings)
             );
         } catch (\Throwable) {
-            error_log('[TypoCap] Navigation proof storage unavailable');
+            error_log('[Typo3Cap] Navigation proof storage unavailable');
             if ($protected) {
                 return $this->noStore(new HtmlResponse('Bot protection is temporarily unavailable. Please try again later.', 503));
             }
@@ -85,7 +85,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
                         . '; Max-Age=' . max(0, $expires - time()) . '; Path=/; HttpOnly; SameSite=Lax' . $this->secureCookieFlag($request));
                 }
             } catch (\Throwable) {
-                error_log('[TypoCap] Could not save navigation continuation');
+                error_log('[Typo3Cap] Could not save navigation continuation');
             }
         }
         return $response;
@@ -99,7 +99,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             'secretKey' => ['CAP_SECRET_KEY', ''],
             'serviceUrl' => ['CAP_SERVICE_URL', 'http://cap:3000'],
             'protectedPaths' => ['CAP_PROTECTED_PATHS', ''],
-            'cookieName' => ['CAP_COOKIE_NAME', 'typo_cap_token'],
+            'cookieName' => ['CAP_COOKIE_NAME', 'typo3_cap_token'],
             'handlerPath' => ['CAP_HANDLER_PATH', ''],
             'widgetUrl' => ['CAP_WIDGET_URL', 'https://cdn.jsdelivr.net/npm/@cap.js/widget@0.1.57/cap.min.js'],
             'timeout' => ['CAP_TIMEOUT', 5],
@@ -108,7 +108,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         ];
         $site = $request->getAttribute('site');
         $pageTsConfig = $site instanceof Site
-            ? (BackendUtility::getPagesTSconfig($site->getRootPageId())['tx_typocap.'] ?? [])
+            ? (BackendUtility::getPagesTSconfig($site->getRootPageId())['tx_typo3cap.'] ?? [])
             : [];
         $settings = [];
         foreach ($defaults as $key => [$variable, $default]) {
@@ -123,7 +123,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             $settings[$key] = trim((string) $settings[$key]);
         }
         if (!preg_match('/^[A-Za-z0-9_-]+$/D', $settings['cookieName'])) {
-            $settings['cookieName'] = 'typo_cap_token';
+            $settings['cookieName'] = 'typo3_cap_token';
         }
         return $settings;
     }
@@ -158,7 +158,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             $settings
         );
         if ($upstream === null || $upstream['status'] !== 200) {
-            error_log('[TypoCap] Token verification service unavailable');
+            error_log('[Typo3Cap] Token verification service unavailable');
             return false;
         }
         $data = json_decode($upstream['body'], true);
@@ -267,9 +267,9 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $json = $escape(json_encode($config, JSON_THROW_ON_ERROR));
         $widget = $escape($settings['widgetUrl']);
-        $handler = $escape($settings['handlerPath'] ?: $base . '?eID=typo_cap_asset&v=8');
+        $handler = $escape($settings['handlerPath'] ?: $base . '?eID=typo3_cap_asset&v=8');
         return '<script src="' . $widget . '" defer></script>'
-            . '<script id="typo-cap-handler" src="' . $handler . '" data-config="' . $json . '" defer></script>';
+            . '<script id="typo3-cap-handler" src="' . $handler . '" data-config="' . $json . '" defer></script>';
     }
 
     private function injectHandler(ResponseInterface $response, ServerRequestInterface $request, array $settings): ResponseInterface
@@ -280,7 +280,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             return $response;
         }
         $html = (string) $response->getBody();
-        if (str_contains($html, 'id="typo-cap-handler"')) {
+        if (str_contains($html, 'id="typo3-cap-handler"')) {
             return $response;
         }
         $position = strripos($html, '</body>');
@@ -299,7 +299,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         if ($template === false) {
             return new HtmlResponse('One moment please…', 403);
         }
-        $html = str_replace('<!-- TYPO_CAP_SCRIPTS -->', $this->scriptTags($request, $settings, true), $template);
+        $html = str_replace('<!-- TYPO3_CAP_SCRIPTS -->', $this->scriptTags($request, $settings, true), $template);
         return new HtmlResponse($html, 403);
     }
 

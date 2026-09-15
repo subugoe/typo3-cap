@@ -1,7 +1,7 @@
 <?php
 
 $EM_CONF[$_EXTKEY] = [
-    'title' => 'Typo CAP - CAPTCHA bot protection',
+    'title' => 'TYPO3 CAP - CAPTCHA bot protection',
     'description' => 'Cap bot protection via PSR-15 middleware: path-based protection, invisible proof-of-work challenge, same-origin proxy, configurable via Page TSconfig or environment variables.',
     'category' => 'fe',
     'author' => 'SUB Göttingen',
