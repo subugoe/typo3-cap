@@ -58,7 +58,7 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_TOKEN_TTL` | `tokenTtl` | 300 seconds |
 | `CAP_NAVIGATION_TTL` | `navigationTtl` | 10 seconds (1–30 allowed) |
 | `CAP_WIDGET_URL` | `widgetUrl` | pinned `@cap.js/widget@0.1.57` on jsDelivr |
-| `CAP_HANDLER_PATH` | `handlerPath` | extension-served `?eID=typo3_cap_asset&v=1` |
+| `CAP_WASM_URL` | `wasmUrl` | `cap_wasm_bg.wasm` beside a custom widget; otherwise Cap's default |
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
 
@@ -70,7 +70,20 @@ The middleware uses TYPO3's standard Page TSconfig API on both TYPO3 12.4 and 13
 
 Continuation records use TYPO3's persistent `hash` cache, and TYPO3 locks serialize verification and allowance updates across PHP workers. Keep that cache persistent. Multi-node deployments need a shared cache and a locking strategy shared across nodes, or sticky routing that keeps a visitor's requests on one node. A cache flush invalidates continuations safely.
 
-The default handler route works with Composer installations, subdirectories, and HTML `<base>` elements. To host the widget yourself, set `CAP_WIDGET_URL` to its public URL. A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). The extension does not loosen your site's policy.
+The extension always serves its bundled `cap-handler.js` through `?eID=typo3_cap_asset&v=9`. This works with Composer installations, subdirectories, and HTML `<base>` elements. To host the widget yourself, set `CAP_WIDGET_URL` to its public URL. With a custom widget URL, WASM automatically loads from `cap_wasm_bg.wasm` in the same directory. For example, `https://cap.example.com/assets/widget.js` uses `https://cap.example.com/assets/cap_wasm_bg.wasm`. Override this with `tx_typo3cap.wasmUrl` or `CAP_WASM_URL` if your file is elsewhere. The handler sets Cap's WASM URL before the widget loads, including on the initial challenge page. See [Cap's asset server documentation](https://capjs.js.org/guide/standalone/options#asset-server).
+
+The asset server exposes four files. This extension uses Cap's invisible programmatic mode:
+
+| Asset | Used by this extension | Purpose |
+| --- | --- | --- |
+| `/assets/widget.js` | Yes | Cap's widget and programmatic API. |
+| `/assets/floating.js` | No | Optional floating widget UI. |
+| `/assets/cap_wasm_bg.wasm` | Yes | Compiled proof-of-work solver. |
+| `/assets/cap_wasm.js` | No | Standalone JavaScript bindings for direct WASM integration. |
+
+The pinned widget includes its own WASM bindings and loads the binary directly, so it does not import `cap_wasm.js`. Both assets used by this extension load from the configured asset server when a custom widget URL is set.
+
+A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). The extension does not loosen your site's policy.
 
 Challenge completion reloads the requested page, preserving its query and fragment even when navigating before the next token is ready.
 

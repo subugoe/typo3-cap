@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Subugoe\Typo3Cap\Middleware;
 
+use GuzzleHttp\Psr7\Uri as AssetUri;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -100,8 +101,8 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             'serviceUrl' => ['CAP_SERVICE_URL', 'http://cap:3000'],
             'protectedPaths' => ['CAP_PROTECTED_PATHS', ''],
             'cookieName' => ['CAP_COOKIE_NAME', 'typo3_cap_token'],
-            'handlerPath' => ['CAP_HANDLER_PATH', ''],
             'widgetUrl' => ['CAP_WIDGET_URL', 'https://cdn.jsdelivr.net/npm/@cap.js/widget@0.1.57/cap.min.js'],
+            'wasmUrl' => ['CAP_WASM_URL', ''],
             'timeout' => ['CAP_TIMEOUT', 5],
             'tokenTtl' => ['CAP_TOKEN_TTL', 300],
             'navigationTtl' => ['CAP_NAVIGATION_TTL', 10],
@@ -121,6 +122,12 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         $settings['navigationTtl'] = max(1, min(30, (int) $settings['navigationTtl']));
         foreach (array_diff(array_keys($defaults), ['enabled', 'timeout', 'tokenTtl', 'navigationTtl']) as $key) {
             $settings[$key] = trim((string) $settings[$key]);
+        }
+        if ($settings['wasmUrl'] === '' && $settings['widgetUrl'] !== $defaults['widgetUrl'][1]) {
+            $widget = new AssetUri($settings['widgetUrl']);
+            $settings['wasmUrl'] = (string) $widget
+                ->withPath(preg_replace('~[^/]*$~', 'cap_wasm_bg.wasm', $widget->getPath(), 1))
+                ->withQuery('')->withFragment('');
         }
         if (!preg_match('/^[A-Za-z0-9_-]+$/D', $settings['cookieName'])) {
             $settings['cookieName'] = 'typo3_cap_token';
@@ -259,6 +266,7 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         $proxyQuery = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         $config = [
             'apiEndpoint' => $base . '?' . ($proxyQuery !== '' ? $proxyQuery . '&' : '') . 'eID=captcha_proxy&path=/',
+            'wasmUrl' => $settings['wasmUrl'],
             'cookieName' => $settings['cookieName'],
             'tokenTtlMs' => $settings['tokenTtl'] * 1000,
             'requestLimit' => NavigationProofService::MAX_AJAX_REQUESTS,
@@ -267,9 +275,10 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $json = $escape(json_encode($config, JSON_THROW_ON_ERROR));
         $widget = $escape($settings['widgetUrl']);
-        $handler = $escape($settings['handlerPath'] ?: $base . '?eID=typo3_cap_asset&v=8');
-        return '<script src="' . $widget . '" defer></script>'
-            . '<script id="typo3-cap-handler" src="' . $handler . '" data-config="' . $json . '" defer></script>';
+        $handler = $escape($base . '?eID=typo3_cap_asset&v=9');
+        // Configure WASM before the widget's eager download starts.
+        return '<script id="typo3-cap-handler" src="' . $handler . '" data-config="' . $json . '" defer></script>'
+            . '<script src="' . $widget . '" defer></script>';
     }
 
     private function injectHandler(ResponseInterface $response, ServerRequestInterface $request, array $settings): ResponseInterface

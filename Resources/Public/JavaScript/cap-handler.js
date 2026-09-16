@@ -5,6 +5,7 @@
     var script = document.getElementById('typo3-cap-handler');
     if (!script || window.Typo3Cap) return;
     var config = JSON.parse(script.getAttribute('data-config'));
+    if (config.wasmUrl) window.CAP_CUSTOM_WASM_URL = new URL(config.wasmUrl, document.baseURI).href;
 
     var cookieName = config.cookieName;
     var retryCookie = cookieName + '_retry';
