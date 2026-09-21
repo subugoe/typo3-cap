@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+	<file source-language="en" datatype="plaintext" original="EXT:typo3_cap/Resources/Private/Language/locallang.xlf" date="2026-09-21T12:00:00Z" product-name="typo3_cap">
+		<header/>
+		<body>
+			<trans-unit id="error_cap_generic" resname="error_cap_generic">
+				<source>Verifying the captcha failed. Please try again.</source>
+			</trans-unit>
+		</body>
+	</file>
+</xliff>

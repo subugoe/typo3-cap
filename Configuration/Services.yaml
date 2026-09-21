@@ -1,0 +1,12 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  Subugoe\Typo3Cap\:
+    resource: '../Classes/*'
+
+  Subugoe\Typo3Cap\Upgrade\MigrateHcaptchaWizard:
+    tags:
+      - name: 'upgrade.wizard'
+        identifier: 'typo3CapMigrateHcaptcha'

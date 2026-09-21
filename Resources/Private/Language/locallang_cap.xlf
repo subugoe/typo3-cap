@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+	<file source-language="en" datatype="plaintext" original="EXT:typo3_cap/Resources/Private/Language/locallang_cap.xlf" date="2026-09-21T12:00:00Z" product-name="typo3_cap">
+		<header/>
+		<body>
+			<trans-unit id="cap.formEditor.element.label" resname="cap.formEditor.element.label">
+				<source>Cap (bot protection)</source>
+			</trans-unit>
+			<trans-unit id="cap.formEditor.stage.validation_label" resname="cap.formEditor.stage.validation_label">
+				<source>Cap</source>
+			</trans-unit>
+			<trans-unit id="cap.formEditor.inspector.validator.header_label" resname="cap.formEditor.inspector.validator.header_label">
+				<source>Cap Validator</source>
+			</trans-unit>
+			<trans-unit id="cap.formEditor.inspector.validator.select.option_label" resname="cap.formEditor.inspector.validator.select.option_label">
+				<source>Cap</source>
+			</trans-unit>
+		</body>
+	</file>
+</xliff>

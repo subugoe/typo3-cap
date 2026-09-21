@@ -1,8 +1,8 @@
 {
     "name": "subugoe/typo3-cap",
-    "description": "TYPO3 extension providing CAPTCHA (trycap.dev) bot protection via a PSR-15 middleware and invisible proof-of-work challenge",
+    "description": "TYPO3 extension providing CAPTCHA (trycap.dev) bot protection via a PSR-15 middleware, an EXT:form element and invisible proof-of-work challenge",
     "type": "typo3-cms-extension",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "license": "GPL-2.0-or-later",
     "authors": [
         {
@@ -17,7 +17,10 @@
         "ext-intl": "*",
         "typo3/cms-backend": "^12.4 || ^13.4",
         "typo3/cms-core": "^12.4 || ^13.4",
-        "typo3/cms-frontend": "^12.4 || ^13.4"
+        "typo3/cms-extbase": "^12.4 || ^13.4",
+        "typo3/cms-form": "^12.4 || ^13.4",
+        "typo3/cms-frontend": "^12.4 || ^13.4",
+        "typo3/cms-install": "^13.4"
     },
     "autoload": {
         "psr-4": {
@@ -39,5 +42,10 @@
             "typo3/class-alias-loader": true,
             "typo3/cms-composer-installers": true
         }
+    },
+    "require-dev": {
+        "rector/rector": "^2.6",
+        "ssch/typo3-rector": "^3.16",
+        "friendsofphp/php-cs-fixer": "^3.95"
     }
 }

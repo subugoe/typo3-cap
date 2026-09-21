@@ -2,3 +2,9 @@ vendor/
 .vscode/
 .idea/
 public/_assets/
+composer.lock
+public/
+
+# PHP CS Fixer configuration
+/.php-cs-fixer.cache
+/.php-cs-fixer.php

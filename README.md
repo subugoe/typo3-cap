@@ -87,6 +87,12 @@ A Content Security Policy must permit the widget, handler, solver resources, and
 
 Challenge completion reloads the requested page, preserving its query and fragment even when navigating before the next token is ready.
 
+## EXT:form integration
+
+Forms can protect themselves per form instead of by path. Include the **Cap Form Configuration (EXT:form)** static template on pages with forms, then add the **Cap (bot protection)** form element in the form editor. The element renders Cap's widget inside the form; the widget injects a hidden `cap-token` input on solve, and the bundled `Cap` validator verifies that token through Cap's `/siteverify` when the form is submitted.
+
+Form-only mode requires `enabled = 1` with an empty `protectedPaths`: the same-origin proxy stays active while no navigation is protected. Pages protected by the middleware can host forms too; both protections then apply independently. The widget loads from `CAP_WIDGET_URL` on unprotected form pages; with a custom widget URL, the WASM URL is configured automatically. The element hides itself on summary pages and in email finishers. It uses Cap's native `required` attribute, so the browser blocks submission until the token is solved, and the server validator rejects missing or already-used tokens with an inline error (`error_cap_generic` in `locallang.xlf`).
+
 ## Navigation and failures
 
 Ordinary same-origin links and forms are handled automatically, including dynamically inserted elements. Form validation, button values, and `formaction`/`formmethod` are preserved. Hash links, downloads, external links, and modified/new-tab clicks retain their native behavior.
@@ -109,3 +115,12 @@ Protected background requests started together in one event share a challenge wh
 The shared token travels in `X-Typo3-Cap-Token`, without consuming or overwriting navigation cookies. Solving is queued with one worker, while the HTTP requests can run concurrently. POST bodies and response handling are preserved. Failed preparation rejects the fetch promise or fires an XHR error; POSTs are not automatically retried. Synchronous XHR and requests from workers are not intercepted. A rejected API request returns `403 {"error":"cap_required"}`.
 
 A direct navigation before proof is ready, an expired continuation, or requests exceeding the duplicate/redirect allowances can still require the initial challenge page. Ordinary background failures stay unobtrusive. Navigation failures offer a retry button, and consecutive rejected solves stop after two automatic retries. Neither PHP sessions nor browser storage are required; cookies and JavaScript are required.
+
+## Migrating from typo3-hcaptcha
+
+1. Install this extension: `composer req subugoe/typo3-cap`. Keep `dreistromland/typo3-hcaptcha` installed until the migration has run.
+2. Run **Admin Tools → Upgrade → Migrate hCaptcha form elements to Cap**. The wizard rewrites every `.form.yaml` (`type: Hcaptcha` element and `Hcaptcha` validator become `type: Cap` / `Cap`), switches the `hcaptcha` static template include to the Cap one, and lists the remaining manual steps.
+3. Configure Cap as described under Configuration: `tx_typo3cap.siteKey`, `tx_typo3cap.secretKey`, and `tx_typo3cap.serviceUrl` (or the `CAP_*` environment variables). hCaptcha keys cannot be reused; create a site in your Cap server and use its keys.
+4. Remove the old extension: `composer rem dreistromland/typo3-hcaptcha`. Its TypoScript constants (`plugin.tx_hcaptcha.settings.*`) become unused and can be deleted.
+
+Semantics change from per-form hCaptcha checks to Cap's proof-of-work: the widget replaces the hCaptcha puzzle, failed verification shows the Cap widget error or the form validator's message instead of hCaptcha error codes, and a Cap server (trycap.dev) must be reachable.
