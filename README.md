@@ -124,3 +124,7 @@ A direct navigation before proof is ready, an expired continuation, or requests 
 4. Remove the old extension: `composer rem dreistromland/typo3-hcaptcha`. Its TypoScript constants (`plugin.tx_hcaptcha.settings.*`) become unused and can be deleted.
 
 Semantics change from per-form hCaptcha checks to Cap's proof-of-work: the widget replaces the hCaptcha puzzle, failed verification shows the Cap widget error or the form validator's message instead of hCaptcha error codes, and a Cap server (trycap.dev) must be reachable.
+
+## Migrating from typo3-altcha
+
+The same upgrade flow: install this extension, run **Admin Tools → Upgrade → Migrate Altcha form elements to Cap** (rewrites `type: Altcha` elements and `Altcha` validators to `Cap`, switches the `altcha` static template include to the Cap one), then `composer rem bbysaeth/typo3-altcha`. The wizard lists the remaining manual steps: remove the `typo3-altcha` site set from your site's `config.yaml` if used, delete the unused `plugin.tx_altcha.settings.*` constants, and optionally drop the obsolete `tx_typo3altcha_domain_model_challenge` table.

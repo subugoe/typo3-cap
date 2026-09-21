@@ -10,3 +10,8 @@ services:
     tags:
       - name: 'upgrade.wizard'
         identifier: 'typo3CapMigrateHcaptcha'
+
+  Subugoe\Typo3Cap\Upgrade\MigrateAltchaWizard:
+    tags:
+      - name: 'upgrade.wizard'
+        identifier: 'typo3CapMigrateAltcha'
