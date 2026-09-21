@@ -6,15 +6,13 @@ namespace Subugoe\Typo3Cap\Validation;
 
 use Psr\Http\Message\ServerRequestInterface;
 use Subugoe\Typo3Cap\Service\CapService;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use TYPO3\CMS\Extbase\Validation\Validator\AbstractValidator;
 
 class CapValidator extends AbstractValidator
 {
     protected $acceptsEmptyValues = false;
 
-    private ?CapService $capService = null;
+    public function __construct(private readonly CapService $capService) {}
 
     /**
      * Validate the Cap token from the request and add an error if not valid.
@@ -27,30 +25,19 @@ class CapValidator extends AbstractValidator
     {
         $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
         if (!$request instanceof ServerRequestInterface) {
-            $this->addError($this->translateErrorMessage(), 1789000000);
+            $this->addError($this->translateErrorMessage('error_cap_generic', 'Typo3Cap'), 1789000000);
 
             return;
         }
         $token = $request->getParsedBody()['cap-token'] ?? '';
         if (!is_string($token) || '' === $token) {
-            $this->addError($this->translateErrorMessage(), 1789000001);
+            $this->addError($this->translateErrorMessage('error_cap_generic', 'Typo3Cap'), 1789000001);
 
             return;
         }
-        $settings = $this->getCapService()->getSettings($request);
-        if (!$this->getCapService()->verifyToken($token, $settings)) {
-            $this->addError($this->translateErrorMessage(), 1789000002);
+        $settings = $this->capService->getSettings($request);
+        if (!$this->capService->verifyToken($token, $settings)) {
+            $this->addError($this->translateErrorMessage('error_cap_generic', 'Typo3Cap'), 1789000002);
         }
-    }
-
-    private function translateErrorMessage(): string
-    {
-        return LocalizationUtility::translate('error_cap_generic', 'Typo3Cap')
-            ?? 'Verifying the captcha failed. Please try again.';
-    }
-
-    private function getCapService(): CapService
-    {
-        return $this->capService ??= GeneralUtility::makeInstance(CapService::class);
     }
 }

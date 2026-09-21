@@ -13,6 +13,9 @@ use TYPO3\CMS\Core\Site\Entity\Site;
 
 final class CapService
 {
+    /**
+     * @throws \JsonException
+     */
     public function getSettings(ServerRequestInterface $request): array
     {
         $defaults = [
@@ -78,6 +81,9 @@ final class CapService
         return $base.'?'.('' !== $proxyQuery ? $proxyQuery.'&' : '').'eID=captcha_proxy&path=/';
     }
 
+    /**
+     * @throws \JsonException
+     */
     public function verifyToken(string $token, array $settings): bool
     {
         if (strlen($token) < 10 || strlen($token) > 4096 || !preg_match('/^[\x21-\x7e]+$/D', $token)) {

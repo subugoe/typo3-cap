@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Subugoe\Typo3Cap\Upgrade;
 
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Resource\File;
+use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
-use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Install\Updates\ChattyInterface;
 use TYPO3\CMS\Install\Updates\UpgradeWizardInterface;
 
@@ -22,8 +23,9 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
     protected array $migratedForms = [];
     protected int $migratedTemplates = 0;
     protected int $failedStorages = 0;
+    private OutputInterface $output;
 
-    public function __construct(private readonly ConnectionPool $connectionPool) {}
+    public function __construct(private readonly ConnectionPool $connectionPool, private readonly StorageRepository $storageRepository) {}
 
     public function updateNecessary(): bool
     {
@@ -41,30 +43,34 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
         return false;
     }
 
-    public function execute(): bool
+    public function executeUpdate(): bool
     {
         $this->migrate();
+        if (count($this->migratedForms) > 0) {
+            $this->output->writeln('Migrated '.count($this->migratedForms).' form definition(s):');
+            foreach ($this->migratedForms as $form) {
+                $this->output->writeln('  - '.$form);
+            }
+        } else {
+            $this->output->writeln('No form definitions needed migration.');
+        }
+        if ($this->migratedTemplates > 0) {
+            $this->output->writeln('Switched the static template include to Cap in '.$this->migratedTemplates.' sys_template record(s).');
+        }
+        if ($this->failedStorages > 0) {
+            $this->output->writeln('Could not read '.$this->failedStorages.' storage folder(s); check their form definitions manually.');
+        }
+        $this->output->writeln('Manual steps:');
+        foreach ($this->getManualSteps() as $step) {
+            $this->output->writeln('  - '.$step);
+        }
 
         return true;
     }
 
-    public function executeWizard(): string
+    public function setOutput(OutputInterface $output): void
     {
-        $this->migrate();
-        $count = count($this->migratedForms);
-        $output = $count > 0
-            ? '<p>Migrated '.$count.' form definition(s):</p><ul><li>'
-                .implode('</li><li>', array_map(htmlspecialchars(...), $this->migratedForms)).'</li></ul>'
-            : '<p>No form definitions needed migration.</p>';
-        if ($this->migratedTemplates > 0) {
-            $output .= '<p>Switched the static template include to Cap in '.$this->migratedTemplates.' sys_template record(s).</p>';
-        }
-        if ($this->failedStorages > 0) {
-            $output .= '<p>Could not read '.$this->failedStorages.' storage folder(s); check their form definitions manually.</p>';
-        }
-        $output .= '<p>Manual steps:</p><ul>'.$this->getManualSteps().'</ul>';
-
-        return $output;
+        $this->output = $output;
     }
 
     public function getPrerequisites(): array
@@ -80,7 +86,10 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
      */
     abstract protected function getStaticTemplateFragment(): string;
 
-    abstract protected function getManualSteps(): string;
+    /**
+     * Plain-text lines shown to the administrator after the migration.
+     */
+    abstract protected function getManualSteps(): array;
 
     private function migrate(): void
     {
@@ -138,31 +147,30 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
 
     private function findFormFiles(): \Generator
     {
-        $storages = GeneralUtility::makeInstance(StorageRepository::class)->findAll();
+        $storages = $this->storageRepository->findAll();
         foreach ($storages as $storage) {
             if (!$storage->isOnline() || !$storage->isBrowsable()) {
                 continue;
             }
 
-            yield from $this->collectFormFiles($storage, $storage->getRootLevelFolder()->getIdentifier(), 0);
+            yield from $this->collectFormFiles($storage, $storage->getRootLevelFolder(), 0);
         }
     }
 
-    // ponytail: depth 5, raise if form definitions nest deeper in your storage
-    private function collectFormFiles(ResourceStorage $storage, string $folderIdentifier, int $depth): \Generator
+    private function collectFormFiles(ResourceStorage $storage, Folder $folder, int $depth): \Generator
     {
         if ($depth > 5) {
             return;
         }
 
         try {
-            foreach ($storage->getFilesInFolder($folderIdentifier) as $file) {
+            foreach ($storage->getFilesInFolder($folder) as $file) {
                 if ($file instanceof File && str_ends_with($file->getName(), '.form.yaml')) {
                     yield $file;
                 }
             }
-            foreach ($storage->getFoldersInFolder($folderIdentifier) as $folder) {
-                yield from $this->collectFormFiles($storage, $folder->getIdentifier(), $depth + 1);
+            foreach ($storage->getFoldersInFolder($folder) as $subFolder) {
+                yield from $this->collectFormFiles($storage, $subFolder, $depth + 1);
             }
         } catch (\Throwable) {
             ++$this->failedStorages;

@@ -21,6 +21,9 @@ class CapViewHelper extends AbstractViewHelper
 
     public function __construct(private readonly CapService $capService, private readonly AssetCollector $assetCollector) {}
 
+    /**
+     * @throws \JsonException
+     */
     public function render(): string
     {
         /** @var null|FormRuntime $formRuntime */

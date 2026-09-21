@@ -23,6 +23,9 @@ final readonly class NavigationProofService
 
     public function __construct(private LockFactory $lockFactory, private CacheManager $cacheManager, private readonly Context $context) {}
 
+    /**
+     * @throws \JsonException
+     */
     public function authorize(ServerRequestInterface $request, array $settings, bool $protected, callable $verify): ?string
     {
         $cookies = $request->getCookieParams();
