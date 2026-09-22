@@ -11,6 +11,7 @@ use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\Folder;
 use TYPO3\CMS\Core\Resource\ResourceStorage;
 use TYPO3\CMS\Core\Resource\StorageRepository;
+use TYPO3\CMS\Form\Mvc\Configuration\YamlSource;
 use TYPO3\CMS\Install\Updates\ChattyInterface;
 use TYPO3\CMS\Install\Updates\UpgradeWizardInterface;
 
@@ -21,11 +22,16 @@ use TYPO3\CMS\Install\Updates\UpgradeWizardInterface;
 abstract class AbstractMigrationWizard implements UpgradeWizardInterface, ChattyInterface
 {
     protected array $migratedForms = [];
+    protected array $failedForms = [];
     protected int $migratedTemplates = 0;
     protected int $failedStorages = 0;
     private OutputInterface $output;
 
-    public function __construct(private readonly ConnectionPool $connectionPool, private readonly StorageRepository $storageRepository) {}
+    public function __construct(
+        private readonly ConnectionPool $connectionPool,
+        private readonly StorageRepository $storageRepository,
+        private readonly YamlSource $yamlSource,
+    ) {}
 
     public function updateNecessary(): bool
     {
@@ -53,6 +59,12 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
             }
         } else {
             $this->output->writeln('No form definitions needed migration.');
+        }
+        if ($this->failedForms !== []) {
+            $this->output->writeln('Could not write '.count($this->failedForms).' form definition(s):');
+            foreach ($this->failedForms as $form) {
+                $this->output->writeln('  - '.$form);
+            }
         }
         if ($this->migratedTemplates > 0) {
             $this->output->writeln('Switched the static template include to Cap in '.$this->migratedTemplates.' sys_template record(s).');
@@ -104,10 +116,11 @@ abstract class AbstractMigrationWizard implements UpgradeWizardInterface, Chatty
             }
 
             try {
-                $file->setContents(Yaml::dump(FormDefinitionMigrator::migrateDefinition($definition, $this->getFromType()), 20, 2));
+                $this->yamlSource->save($file, FormDefinitionMigrator::migrateDefinition($definition, $this->getFromType()));
                 $this->migratedForms[] = $file->getIdentifier();
-            } catch (\Throwable) {
-                // Non-writable storage or invalid YAML: skipped, reported in the wizard output.
+            } catch (\Throwable $e) {
+                // Non-writable storage or invalid YAML: reported below with the reason.
+                $this->failedForms[] = $file->getIdentifier().': '.$e->getMessage();
             }
         }
         $this->migrateTemplates();

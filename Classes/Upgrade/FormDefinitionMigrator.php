@@ -19,6 +19,9 @@ final class FormDefinitionMigrator
         if (isset($definition['renderables']) && is_array($definition['renderables'])) {
             $definition['renderables'] = self::migrateRenderables($definition['renderables'], $from);
         }
+        if (isset($definition['renderingOptions']['fieldState']) && is_array($definition['renderingOptions']['fieldState'])) {
+            $definition['renderingOptions']['fieldState'] = self::migrateRenderables($definition['renderingOptions']['fieldState'], $from);
+        }
 
         return $definition;
     }
