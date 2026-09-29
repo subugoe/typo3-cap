@@ -30,6 +30,8 @@ final class CapService
             'timeout' => ['CAP_TIMEOUT', 5],
             'tokenTtl' => ['CAP_TOKEN_TTL', 300],
             'navigationTtl' => ['CAP_NAVIGATION_TTL', 10],
+            'cspNonce' => ['CAP_CSP_NONCE', true],
+            'cspSources' => ['CAP_CSP_SOURCES', true],
         ];
         $site = $request->getAttribute('site');
         $pageTsConfig = $site instanceof Site
@@ -41,10 +43,15 @@ final class CapService
             $settings[$key] = $pageTsConfig[$key] ?? (false === $environment ? $default : $environment);
         }
         $settings['enabled'] = filter_var($settings['enabled'], FILTER_VALIDATE_BOOLEAN);
+        $settings['cspNonce'] = filter_var($settings['cspNonce'], FILTER_VALIDATE_BOOLEAN);
+        $settings['cspSources'] = filter_var($settings['cspSources'], FILTER_VALIDATE_BOOLEAN);
         $settings['timeout'] = max(1, (int) $settings['timeout']);
         $settings['tokenTtl'] = max(10, (int) $settings['tokenTtl']);
         $settings['navigationTtl'] = max(1, min(30, (int) $settings['navigationTtl']));
-        foreach (array_diff(array_keys($defaults), ['enabled', 'timeout', 'tokenTtl', 'navigationTtl']) as $key) {
+        foreach (array_diff(
+            array_keys($defaults),
+            ['enabled', 'cspNonce', 'cspSources', 'timeout', 'tokenTtl', 'navigationTtl']
+        ) as $key) {
             $settings[$key] = trim((string) $settings[$key]);
         }
         if ('' === $settings['wasmUrl'] && $settings['widgetUrl'] !== $defaults['widgetUrl'][1]) {

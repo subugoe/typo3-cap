@@ -5,3 +5,12 @@ services:
 
   Subugoe\Typo3Cap\:
     resource: '../Classes/*'
+
+  # Registered explicitly instead of with #[AsEventListener], because that
+  # attribute does not exist in TYPO3 v12. On v12 the event is never dispatched
+  # and the listener stays inactive.
+  Subugoe\Typo3Cap\EventListener\CapWidgetCspListener:
+    tags:
+      - name: 'event.listener'
+        identifier: 'typo3_cap/widget-csp'
+        event: TYPO3\CMS\Core\Security\ContentSecurityPolicy\Event\PolicyMutatedEvent

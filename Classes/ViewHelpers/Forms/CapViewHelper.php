@@ -7,6 +7,8 @@ namespace Subugoe\Typo3Cap\ViewHelpers\Forms;
 use Psr\Http\Message\ServerRequestInterface;
 use Subugoe\Typo3Cap\Service\CapService;
 use TYPO3\CMS\Core\Page\AssetCollector;
+use TYPO3\CMS\Core\Security\ContentSecurityPolicy\ConsumableNonce;
+use TYPO3\CMS\Core\Security\ContentSecurityPolicy\Directive;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\ViewHelpers\RenderRenderableViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
@@ -53,14 +55,53 @@ class CapViewHelper extends AbstractViewHelper
             $settings['widgetUrl'],
             ['defer' => '']
         );
-        // Must run before the widget script: its eager WASM download reads this global.
-        $widget = '<cap-widget data-cap-api-endpoint="'.htmlspecialchars($this->capService->getProxyEndpoint($request), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" required></cap-widget>';
-        if ('' !== $settings['wasmUrl']) {
-            $wasm = htmlspecialchars(json_encode($settings['wasmUrl'], JSON_THROW_ON_ERROR), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-            return '<script>window.CAP_CUSTOM_WASM_URL='.$wasm.';</script>'.$widget;
+        // Must run before the widget script: it reads the globals below, and its
+        // eager WASM download reads CAP_CUSTOM_WASM_URL.
+        return $this->bootstrapScript($request, $settings)
+            .'<cap-widget data-cap-api-endpoint="'.htmlspecialchars($this->capService->getProxyEndpoint($request), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" required></cap-widget>';
+    }
+
+    /**
+     * Cap reads its configuration from globals before the widget upgrades, so
+     * they have to be set by an inline script in front of it.
+     *
+     * A strict Content-Security-Policy needs that script to carry the request
+     * nonce. The same nonce is handed to Cap as CAP_CSS_NONCE, because the
+     * widget injects its stylesheet into a shadow root, where an inline <style>
+     * is only allowed with a nonce - without it the widget renders unstyled and
+     * its SVG circles fall back to the default black fill.
+     *
+     * @throws \JsonException
+     */
+    private function bootstrapScript(ServerRequestInterface $request, array $settings): string
+    {
+        $globals = [];
+        $nonce = null;
+        if ($settings['cspNonce']) {
+            $consumable = $request->getAttribute('nonce');
+            if ($consumable instanceof ConsumableNonce) {
+                // Consume for both families, so TYPO3 keeps issuing the nonce
+                // in cached pages even if only one of them allows it.
+                $nonce = $consumable->consumeInline(Directive::StyleSrcElem);
+                $consumable->consumeInline(Directive::ScriptSrcElem);
+                $globals['CAP_CSS_NONCE'] = $nonce;
+            }
+        }
+        if ('' !== $settings['wasmUrl']) {
+            $globals['CAP_CUSTOM_WASM_URL'] = $settings['wasmUrl'];
+        }
+        if ([] === $globals) {
+            return '';
+        }
+        $attribute = null === $nonce
+            ? ''
+            : ' nonce="'.htmlspecialchars($nonce, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
+        $source = '';
+        foreach ($globals as $name => $value) {
+            $source .= 'window.'.$name.'='.json_encode((string) $value, JSON_THROW_ON_ERROR).';';
         }
 
-        return $widget;
+        return '<script'.$attribute.'>'.$source.'</script>';
     }
 }

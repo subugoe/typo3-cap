@@ -59,6 +59,8 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_NAVIGATION_TTL` | `navigationTtl` | 10 seconds (1–30 allowed) |
 | `CAP_WIDGET_URL` | `widgetUrl` | pinned `@cap.js/widget@0.1.57` on jsDelivr |
 | `CAP_WASM_URL` | `wasmUrl` | `cap_wasm_bg.wasm` beside a custom widget; otherwise Cap's default |
+| `CAP_CSP_NONCE` | `cspNonce` | `true` |
+| `CAP_CSP_SOURCES` | `cspSources` | `true` |
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
 
@@ -83,7 +85,12 @@ The asset server exposes four files. This extension uses Cap's invisible program
 
 The pinned widget includes its own WASM bindings and loads the binary directly, so it does not import `cap_wasm.js`. Both assets used by this extension load from the configured asset server when a custom widget URL is set.
 
-A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). The extension does not loosen your site's policy.
+A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). Two settings cover what the browser needs, and both are on by default:
+
+- `cspNonce` hands the request's CSP nonce to the widget. Cap injects its stylesheet into a shadow root, where an inline `<style>` is only accepted with a nonce, and it reads that nonce from `window.CAP_CSS_NONCE`. The same nonce also carries the inline script that sets `window.CAP_CUSTOM_WASM_URL`, so no `'unsafe-hashes'` source is needed. Requires TYPO3 v13, which issues the nonce; on v12 no nonce exists and the script is emitted without one. The policy still has to list `'nonce-proxy'` for `style-src`, otherwise TYPO3 has no nonce to issue and the widget renders unstyled.
+- `cspSources` adds the origin of `widgetUrl` and `wasmUrl` to `script-src`, `script-src-elem` and `connect-src`. That origin is configuration and differs per environment, so it cannot be hardcoded in the site's policy. Set it to `0` to manage the sources in the site's policy instead.
+
+Without either setting, a strict policy leaves the widget unstyled and it silently falls back to Cap's default jsDelivr URLs.
 
 Challenge completion reloads the requested page, preserving its query and fragment even when navigating before the next token is ready.
 
