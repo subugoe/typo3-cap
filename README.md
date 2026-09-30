@@ -59,6 +59,8 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_NAVIGATION_TTL` | `navigationTtl` | 10 seconds (1–30 allowed) |
 | `CAP_WIDGET_URL` | `widgetUrl` | pinned `@cap.js/widget@0.1.57` on jsDelivr |
 | `CAP_WASM_URL` | `wasmUrl` | `cap_wasm_bg.wasm` beside a custom widget; otherwise Cap's default |
+| `CAP_BYPASS_USERNAME` | `bypassUsername` | empty |
+| `CAP_BYPASS_PASSWORD` | `bypassPassword` | empty |
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
 
@@ -67,6 +69,23 @@ The middleware uses TYPO3's standard Page TSconfig API on both TYPO3 12.4 and 13
 `CAP_TOKEN_TTL` controls how long a prepared token is kept. Set it no higher than your Cap server's token lifetime. Visible pages renew shortly before this interval, and react to the widget's token-expiry event. Hidden pages pause scheduled renewal and resume when shown. Navigation preparation uses at most two workers.
 
 `CAP_NAVIGATION_TTL` starts after successful verification and covers the entire redirect/duplicate sequence. The receipt is an opaque, HttpOnly cookie named `<CAP_COOKIE_NAME>_navigation`. Its server record binds authorization to the URL, query, method, and, for body-preserving redirects, request body. Duplicate POSTs remain rejected; this is not a substitute for application-level submission idempotency.
+
+`CAP_BYPASS_USERNAME` and `CAP_BYPASS_PASSWORD` define trusted HTTP Basic credentials that skip Cap protection entirely, e.g. for solr extension, which cannot solve proof-of-work challenges. Send the credentials as a normal `Authorization: Basic` header:
+
+```sh
+curl -u your-user:your-password https://example.com/search
+```
+
+Both values must be set, otherwise the bypass stays disabled. Requests with valid credentials pass through unmodified, without cookies or challenge responses, and are checked with constant-time comparison.
+
+For the Solr indexer (inside your root Typoscript Setup):
+
+```typo
+plugin.tx_solr.index.queue.pages.indexer.authorization {
+    username = your_user
+    password = your-long_random-password
+}
+```
 
 Continuation records use TYPO3's persistent `hash` cache, and TYPO3 locks serialize verification and allowance updates across PHP workers. Keep that cache persistent. Multi-node deployments need a shared cache and a locking strategy shared across nodes, or sticky routing that keeps a visitor's requests on one node. A cache flush invalidates continuations safely.
 
