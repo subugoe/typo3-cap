@@ -33,6 +33,11 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         }
 
         $settings = $this->getCapSettings($request);
+
+        if ($this->isTrustedIndexer($request, $settings)) {
+            return $handler->handle($request);
+        }
+
         if ($eID === 'captcha_proxy') {
             return $this->handleProxyRequest($request, $settings);
         }
@@ -92,6 +97,34 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
         return $response;
     }
 
+    private function isTrustedIndexer(ServerRequestInterface $request, array $settings): bool
+    {
+        $username = $settings['bypassUsername'];
+        $password = $settings['bypassPassword'];
+
+        if ($username === '' || $password === '') {
+            return false;
+        }
+
+        $authorization = $request->getHeaderLine('Authorization');
+
+        if (!str_starts_with($authorization, 'Basic ')) {
+            return false;
+        }
+
+        $credentials = base64_decode(substr($authorization, 6), true);
+
+        if ($credentials === false) {
+            return false;
+        }
+
+        [$givenUsername, $givenPassword] =
+            array_pad(explode(':', $credentials, 2), 2, '');
+
+        return hash_equals($username, $givenUsername)
+            && hash_equals($password, $givenPassword);
+    }
+
     private function getCapSettings(ServerRequestInterface $request): array
     {
         $defaults = [
@@ -106,6 +139,8 @@ final class CapTokenVerifierMiddleware implements MiddlewareInterface
             'timeout' => ['CAP_TIMEOUT', 5],
             'tokenTtl' => ['CAP_TOKEN_TTL', 300],
             'navigationTtl' => ['CAP_NAVIGATION_TTL', 10],
+            'bypassUsername' => ['CAP_BYPASS_USERNAME', ''],
+            'bypassPassword' => ['CAP_BYPASS_PASSWORD', ''],
         ];
         $site = $request->getAttribute('site');
         $pageTsConfig = $site instanceof Site
