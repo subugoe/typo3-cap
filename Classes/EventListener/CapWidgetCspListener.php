@@ -53,6 +53,7 @@ class CapWidgetCspListener
 
         $policy = $event->getCurrentPolicy();
         $policy = $policy->extend(Directive::ScriptSrc, SourceKeyword::wasmUnsafeEval);
+        $policy = $policy->extend(Directive::ScriptSrc, SourceKeyword::unsafeEval);
         foreach (array_values($origins) as $origin) {
             $source = new UriValue($origin);
             $policy = $policy->extend(Directive::ScriptSrc, $source);
