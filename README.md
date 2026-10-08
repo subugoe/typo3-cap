@@ -88,7 +88,7 @@ The pinned widget includes its own WASM bindings and loads the binary directly, 
 A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). Two settings cover what the browser needs, and both are on by default:
 
 - `cspNonce` hands the request's CSP nonce to the widget. Cap injects its stylesheet into a shadow root, where an inline `<style>` is only accepted with a nonce, and it reads that nonce from `window.CAP_CSS_NONCE`. The same nonce also carries the inline script that sets `window.CAP_CUSTOM_WASM_URL`, so no `'unsafe-hashes'` source is needed. Requires TYPO3 v13, which issues the nonce; on v12 no nonce exists and the script is emitted without one. The policy still has to list `'nonce-proxy'` for `style-src`, otherwise TYPO3 has no nonce to issue and the widget renders unstyled.
-- `cspSources` adds the origin of `widgetUrl` and `wasmUrl` to `script-src`, `script-src-elem` and `connect-src`. That origin is configuration and differs per environment, so it cannot be hardcoded in the site's policy. Set it to `0` to manage the sources in the site's policy instead.
+- `cspSources` adds the origin of `widgetUrl` and `wasmUrl` to `script-src`, `script-src-elem` and `connect-src`, plus `'wasm-unsafe-eval'` to `script-src`, because the widget compiles its proof-of-work solver with WebAssembly. That origin is configuration and differs per environment, so it cannot be hardcoded in the site's policy. Set it to `0` to manage the sources in the site's policy instead.
 
 Without either setting, a strict policy leaves the widget unstyled and it silently falls back to Cap's default jsDelivr URLs.
 

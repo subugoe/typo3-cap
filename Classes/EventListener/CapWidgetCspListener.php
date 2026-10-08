@@ -8,6 +8,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Subugoe\Typo3Cap\Service\CapService;
 use TYPO3\CMS\Core\Security\ContentSecurityPolicy\Directive;
 use TYPO3\CMS\Core\Security\ContentSecurityPolicy\Event\PolicyMutatedEvent;
+use TYPO3\CMS\Core\Security\ContentSecurityPolicy\SourceKeyword;
 use TYPO3\CMS\Core\Security\ContentSecurityPolicy\UriValue;
 
 /**
@@ -51,6 +52,7 @@ class CapWidgetCspListener
         }
 
         $policy = $event->getCurrentPolicy();
+        $policy = $policy->extend(Directive::ScriptSrc, SourceKeyword::wasmUnsafeEval);
         foreach (array_values($origins) as $origin) {
             $source = new UriValue($origin);
             $policy = $policy->extend(Directive::ScriptSrc, $source);
