@@ -9,6 +9,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Http\NormalizedParams;
 use TYPO3\CMS\Core\Http\Uri;
+use TYPO3\CMS\Core\Security\ContentSecurityPolicy\ConsumableNonce;
+use TYPO3\CMS\Core\Security\ContentSecurityPolicy\Directive;
 use TYPO3\CMS\Core\Site\Entity\Site;
 
 final class CapService
@@ -24,6 +26,7 @@ final class CapService
             'secretKey' => ['CAP_SECRET_KEY', ''],
             'serviceUrl' => ['CAP_SERVICE_URL', 'http://cap:3000'],
             'protectedPaths' => ['CAP_PROTECTED_PATHS', ''],
+            'extraProtectedPaths' => ['CAP_EXTRA_PROTECTED_PATHS', ''],
             'cookieName' => ['CAP_COOKIE_NAME', 'typo3_cap_token'],
             'widgetUrl' => ['CAP_WIDGET_URL', 'https://cdn.jsdelivr.net/npm/@cap.js/widget@0.1.57/cap.min.js'],
             'wasmUrl' => ['CAP_WASM_URL', ''],
@@ -68,9 +71,31 @@ final class CapService
         return $settings;
     }
 
+    /**
+     * Returns the request's CSP nonce when the `cspNonce` setting is enabled
+     * and TYPO3 issues one, or null otherwise. The nonce is consumed for both
+     * families, so TYPO3 keeps issuing it in cached pages even if only one of
+     * them allows it.
+     */
+    public function getCspNonce(ServerRequestInterface $request): ?string
+    {
+        $settings = $this->getSettings($request);
+        if (!$settings['cspNonce']) {
+            return null;
+        }
+        $consumable = $request->getAttribute('nonce');
+        if (!$consumable instanceof ConsumableNonce) {
+            return null;
+        }
+        $nonce = $consumable->consumeInline(Directive::StyleSrcElem);
+        $consumable->consumeInline(Directive::ScriptSrcElem);
+
+        return $nonce;
+    }
+
     public function getHandlerUrl(ServerRequestInterface $request): string
     {
-        return $this->getBaseUri($request).'?eID=typo3_cap_asset&v=9';
+        return $this->getBaseUri($request).'?eID=typo3_cap_asset&v=10';
     }
 
     public function getProxyEndpoint(ServerRequestInterface $request): string

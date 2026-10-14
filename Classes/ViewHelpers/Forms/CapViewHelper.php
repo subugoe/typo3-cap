@@ -7,8 +7,6 @@ namespace Subugoe\Typo3Cap\ViewHelpers\Forms;
 use Psr\Http\Message\ServerRequestInterface;
 use Subugoe\Typo3Cap\Service\CapService;
 use TYPO3\CMS\Core\Page\AssetCollector;
-use TYPO3\CMS\Core\Security\ContentSecurityPolicy\ConsumableNonce;
-use TYPO3\CMS\Core\Security\ContentSecurityPolicy\Directive;
 use TYPO3\CMS\Form\Domain\Runtime\FormRuntime;
 use TYPO3\CMS\Form\ViewHelpers\RenderRenderableViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
@@ -77,16 +75,9 @@ class CapViewHelper extends AbstractViewHelper
     private function bootstrapScript(ServerRequestInterface $request, array $settings): string
     {
         $globals = [];
-        $nonce = null;
-        if ($settings['cspNonce']) {
-            $consumable = $request->getAttribute('nonce');
-            if ($consumable instanceof ConsumableNonce) {
-                // Consume for both families, so TYPO3 keeps issuing the nonce
-                // in cached pages even if only one of them allows it.
-                $nonce = $consumable->consumeInline(Directive::StyleSrcElem);
-                $consumable->consumeInline(Directive::ScriptSrcElem);
-                $globals['CAP_CSS_NONCE'] = $nonce;
-            }
+        $nonce = $this->capService->getCspNonce($request);
+        if (null !== $nonce) {
+            $globals['CAP_CSS_NONCE'] = $nonce;
         }
         if ('' !== $settings['wasmUrl']) {
             $globals['CAP_CUSTOM_WASM_URL'] = $settings['wasmUrl'];

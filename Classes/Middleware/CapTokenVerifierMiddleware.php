@@ -33,14 +33,21 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
         if ('captcha_proxy' === $eID) {
             return $this->handleProxyRequest($request, $settings);
         }
-        $protected = $settings['enabled'] && $this->isPathProtected($request->getUri()->getPath(), $settings);
+        $path = $request->getUri()->getPath();
+        $protected = $settings['enabled'] && $this->isPathMatching($path, $settings['protectedPaths']);
+        $extraProtected = $settings['enabled'] && $this->isPathMatching($path, $settings['extraProtectedPaths']);
         if ('HEAD' === $request->getMethod() && '1' === $request->getHeaderLine('X-Typo3-Cap-Probe')) {
             // Decide in PHP so AJAX uses the same site settings and PCRE rules.
-            return $this->noStore(new HtmlResponse('', 204, ['X-Typo3-Cap-Required' => $protected ? '1' : '0']));
+            return $this->noStore(new HtmlResponse('', 204, [
+                'X-Typo3-Cap-Required' => $protected ? '1' : '0',
+                'X-Typo3-Cap-Instrumented' => $extraProtected ? '1' : '0',
+            ]));
         }
-        if (!$settings['enabled'] || '' === $settings['protectedPaths']) {
+        if (!$settings['enabled'] || ('' === $settings['protectedPaths'] && '' === $settings['extraProtectedPaths'])) {
             return $handler->handle($request);
         }
+        // Extra-protected paths are protected and solve their challenge with instrumentation.
+        $protected = $protected || $extraProtected;
 
         $headerProof = $request->hasHeader('X-Typo3-Cap-Token');
         if ($protected && ('' === $settings['siteKey'] || '' === $settings['secretKey'])) {
@@ -52,6 +59,7 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
                 $request,
                 $settings,
                 $protected,
+                $extraProtected,
                 fn (string $token): bool => $this->capService->verifyToken($token, $settings)
             );
         } catch (\Throwable) {
@@ -64,7 +72,7 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
         if ($protected && null === $navigation) {
             // Never lose a POST body by redirecting it as GET.
             $response = !$headerProof && 'GET' === $request->getMethod() && $this->acceptsHtml($request)
-                ? $this->createChallengeResponse($request, $settings)
+                ? $this->createChallengeResponse($request, $settings, $extraProtected)
                 : new JsonResponse(['error' => 'cap_required'], 403);
             $response = $this->noStore($response);
 
@@ -74,7 +82,7 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
         $response = $handler->handle($request);
         if ($protected) {
             // Inject into protected HTML, including TYPO3 page-cache hits.
-            $response = $this->injectHandler($response, $request, $settings);
+            $response = $this->injectHandler($response, $request, $settings, $extraProtected);
         }
         if (null !== $navigation) {
             $response = $this->noStore($response);
@@ -96,9 +104,8 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
         return $response;
     }
 
-    private function isPathProtected(string $path, array $settings): bool
+    private function isPathMatching(string $path, string $patterns): bool
     {
-        $patterns = $settings['protectedPaths'];
         if (str_contains($patterns, '#') && preg_match_all('/#[^#]+#[imsu]*/', $patterns, $matches)) {
             foreach ($matches[0] as $pattern) {
                 if (1 === @preg_match($pattern, $path)) {
@@ -178,7 +185,7 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
         return $https ? '; Secure' : '';
     }
 
-    private function scriptTags(ServerRequestInterface $request, array $settings, bool $challenge = false): string
+    private function scriptTags(ServerRequestInterface $request, array $settings, bool $challenge = false, bool $instrumented = false): string
     {
         $config = [
             'apiEndpoint' => $this->capService->getProxyEndpoint($request),
@@ -187,6 +194,8 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
             'tokenTtlMs' => $settings['tokenTtl'] * 1000,
             'requestLimit' => NavigationProofService::MAX_AJAX_REQUESTS,
             'challengePage' => $challenge,
+            'instrumented' => $instrumented,
+            'cspNonce' => $this->capService->getCspNonce($request),
         ];
         $escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $json = $escape(json_encode($config, JSON_THROW_ON_ERROR));
@@ -198,7 +207,7 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
             .'<script src="'.$widget.'" defer></script>';
     }
 
-    private function injectHandler(ResponseInterface $response, ServerRequestInterface $request, array $settings): ResponseInterface
+    private function injectHandler(ResponseInterface $response, ServerRequestInterface $request, array $settings, bool $instrumented): ResponseInterface
     {
         if ('HEAD' === $request->getMethod() || 200 !== $response->getStatusCode()
             || !str_contains(strtolower($response->getHeaderLine('Content-Type')), 'text/html')
@@ -214,19 +223,19 @@ final readonly class CapTokenVerifierMiddleware implements MiddlewareInterface
             return $response;
         }
         $body = new Stream('php://temp', 'r+');
-        $body->write(substr_replace($html, $this->scriptTags($request, $settings), $position, 0));
+        $body->write(substr_replace($html, $this->scriptTags($request, $settings, false, $instrumented), $position, 0));
         $body->rewind();
 
         return $response->withBody($body)->withoutHeader('Content-Length')->withoutHeader('ETag');
     }
 
-    private function createChallengeResponse(ServerRequestInterface $request, array $settings): ResponseInterface
+    private function createChallengeResponse(ServerRequestInterface $request, array $settings, bool $instrumented): ResponseInterface
     {
         $template = file_get_contents(__DIR__.'/../../Resources/Private/Templates/ChallengePage.html');
         if (false === $template) {
             return new HtmlResponse('One moment please…', 403);
         }
-        $html = str_replace('<!-- TYPO3_CAP_SCRIPTS -->', $this->scriptTags($request, $settings, true), $template);
+        $html = str_replace('<!-- TYPO3_CAP_SCRIPTS -->', $this->scriptTags($request, $settings, true, $instrumented), $template);
 
         return new HtmlResponse($html, 403);
     }

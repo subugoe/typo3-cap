@@ -5,6 +5,10 @@
     var script = document.getElementById('typo3-cap-handler');
     if (!script || window.Typo3Cap) return;
     var config = JSON.parse(script.getAttribute('data-config'));
+    if (config.cspNonce) {
+        window.CAP_SCRIPT_NONCE = config.cspNonce;
+        window.CAP_CSS_NONCE = config.cspNonce;
+    }
     if (config.wasmUrl) window.CAP_CUSTOM_WASM_URL = new URL(config.wasmUrl, document.baseURI).href;
 
     var cookieName = config.cookieName;
@@ -201,7 +205,7 @@
         function needsProof(href) {
             var url = sameOriginUrl(href);
             if (!url || ['captcha_proxy', 'typo3_cap_asset'].includes(url.searchParams.get('eID'))) {
-                return Promise.resolve(false);
+                return Promise.resolve(null);
             }
             url.hash = '';
             if (!checks.has(url.href)) {
@@ -209,7 +213,10 @@
                 checks.set(url.href, nativeFetch(url.href, {
                     method: 'HEAD', headers: { 'X-Typo3-Cap-Probe': '1' }, cache: 'no-store'
                 }).then(function (response) {
-                    return response.headers.get('X-Typo3-Cap-Required') === '1';
+                    return {
+                        required: response.headers.get('X-Typo3-Cap-Required') === '1',
+                        instrumented: response.headers.get('X-Typo3-Cap-Instrumented') === '1'
+                    };
                 }).catch(function (error) {
                     checks.delete(url.href);
                     throw error;
@@ -218,12 +225,15 @@
             return checks.get(url.href);
         }
 
-        function requestProof(cancelled) {
+        function requestProof(instrumented, cancelled) {
             var result = queue.then(function () {
                 if (cancelled()) return null;
                 return waitForLibrary().then(function () {
                     if (cancelled()) return null;
-                    var cap = new window.Cap({ apiEndpoint: config.apiEndpoint, 'data-cap-worker-count': '1' });
+                    var cap = new window.Cap({
+                        apiEndpoint: config.apiEndpoint,
+                        'data-cap-worker-count': '1'
+                    });
                     var timeout;
                     return Promise.race([
                         Promise.resolve().then(function () { return cap.solve(); }),
@@ -262,11 +272,11 @@
                 });
             }
             batch.members.push(cancelled);
-            return needsProof(href).then(function (required) {
-                if (!required || cancelled()) return null;
+            return needsProof(href).then(function (probe) {
+                if (!probe || !probe.required || cancelled()) return null;
                 if (!batch.proof) {
                     batch.proof = batch.closed.then(function () {
-                        return requestProof(function () {
+                        return requestProof(probe.instrumented, function () {
                             return batch.members.every(function (isCancelled) { return isCancelled(); });
                         });
                     });

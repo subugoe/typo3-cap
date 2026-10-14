@@ -26,16 +26,18 @@ final readonly class NavigationProofService
     /**
      * @throws \JsonException
      */
-    public function authorize(ServerRequestInterface $request, array $settings, bool $protected, callable $verify): ?string
+    public function authorize(ServerRequestInterface $request, array $settings, bool $protected, bool $instrumented, callable $verify): ?string
     {
         $cookies = $request->getCookieParams();
         // Background requests carry their own proof and never borrow navigation cookies.
         $headerProof = $request->hasHeader('X-Typo3-Cap-Token');
         $token = $headerProof ? $request->getHeaderLine('X-Typo3-Cap-Token') : ($cookies[$settings['cookieName']] ?? '');
         $receipt = $headerProof ? '' : ($cookies[$settings['cookieName'].'_navigation'] ?? '');
+        // The instrumentation flag scopes tokens: an instrumented proof cannot be
+        // replayed for a non-instrumented path and vice versa.
         $scope = hash('sha256', json_encode([
             $settings['serviceUrl'], $settings['siteKey'], $settings['secretKey'],
-            $settings['cookieName'], $this->origin($this->publicUri($request)),
+            $settings['cookieName'], $this->origin($this->publicUri($request)), $instrumented,
         ], JSON_THROW_ON_ERROR));
         if (is_string($token) && '' !== $token) {
             $identifier = self::CACHE_PREFIX.hash_hmac('sha256', $token, $scope);

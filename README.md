@@ -25,6 +25,7 @@ tx_typo3cap {
     siteKey = your-site-key
     serviceUrl = http://cap:3000
     protectedPaths = /comma/,/separated/,/pages/
+    extraProtectedPaths = /extra/,/protected/
 }
 ```
 
@@ -38,6 +39,7 @@ CAP_SITE_KEY=your-site-key
 CAP_SECRET_KEY=your-secret-key
 CAP_SERVICE_URL=http://cap:3000
 CAP_PROTECTED_PATHS=/comma/,/separated/,/pages/
+CAP_EXTRA_PROTECTED_PATHS=/extra/,/protected/
 ```
 
 The service URL is reachable from PHP; browsers use the extension's same-origin proxy. The proxy accepts only POST requests to `challenge` and `redeem`. The server secret stays in PHP.
@@ -53,6 +55,7 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_SECRET_KEY` | `secretKey` | empty |
 | `CAP_SERVICE_URL` | `serviceUrl` | `http://cap:3000` |
 | `CAP_PROTECTED_PATHS` | `protectedPaths` | empty |
+| `CAP_EXTRA_PROTECTED_PATHS` | `extraProtectedPaths` | empty |
 | `CAP_COOKIE_NAME` | `cookieName` | `typo3_cap_token` |
 | `CAP_TIMEOUT` | `timeout` | 5 seconds per upstream request |
 | `CAP_TOKEN_TTL` | `tokenTtl` | 300 seconds |
@@ -64,6 +67,8 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
 
+`extraProtectedPaths` accepts the same comma-separated prefixes or `#`-delimited PCRE expressions as `protectedPaths`. Requests matching these paths are protected like `protectedPaths` paths. Cap's programmatic `cap.solve()` automatically executes both the proof-of-work **and Cap's instrumentation** (which verifies the browser's JS engine) whenever the Cap server's `/challenge` response contains instrumentation data — that is controlled by the site-key configuration on the Cap Standalone server, not by this extension; no widget, no user interaction. This extension's role is to signal which requests must expect instrumentation through a `X-Typo3-Cap-Instrumented` header on the HEAD probe and an `instrumented` flag in the handler's `data-config`, and to scope the resulting tokens separately: an instrumented proof cannot be replayed for a regular protected path and vice versa. Because Cap's instrumentation uses `eval()` and `new Function()`, instrumentation requires `'unsafe-eval'` and `'wasm-unsafe-eval'` in `script-src`; both are added automatically when `cspSources` is enabled (the default). An empty `extraProtectedPaths` keeps the regular `protectedPaths` behavior unchanged.
+
 The middleware uses TYPO3's standard Page TSconfig API on both TYPO3 12.4 and 13.4, after site resolution and before eID handling or page rendering. Configure Cap at the site root using unconditional values. This keeps proof verification and background challenges consistent across pages, languages, and redirects.
 
 `CAP_TOKEN_TTL` controls how long a prepared token is kept. Set it no higher than your Cap server's token lifetime. Visible pages renew shortly before this interval, and react to the widget's token-expiry event. Hidden pages pause scheduled renewal and resume when shown. Navigation preparation uses at most two workers.
@@ -72,7 +77,7 @@ The middleware uses TYPO3's standard Page TSconfig API on both TYPO3 12.4 and 13
 
 Continuation records use TYPO3's persistent `hash` cache, and TYPO3 locks serialize verification and allowance updates across PHP workers. Keep that cache persistent. Multi-node deployments need a shared cache and a locking strategy shared across nodes, or sticky routing that keeps a visitor's requests on one node. A cache flush invalidates continuations safely.
 
-The extension always serves its bundled `cap-handler.js` through `?eID=typo3_cap_asset&v=9`. This works with Composer installations, subdirectories, and HTML `<base>` elements. To host the widget yourself, set `CAP_WIDGET_URL` to its public URL. With a custom widget URL, WASM automatically loads from `cap_wasm_bg.wasm` in the same directory. For example, `https://cap.example.com/assets/widget.js` uses `https://cap.example.com/assets/cap_wasm_bg.wasm`. Override this with `tx_typo3cap.wasmUrl` or `CAP_WASM_URL` if your file is elsewhere. The handler sets Cap's WASM URL before the widget loads, including on the initial challenge page. See [Cap's asset server documentation](https://capjs.js.org/guide/standalone/options#asset-server).
+The extension always serves its bundled `cap-handler.js` through `?eID=typo3_cap_asset&v=10`. This works with Composer installations, subdirectories, and HTML `<base>` elements. To host the widget yourself, set `CAP_WIDGET_URL` to its public URL. With a custom widget URL, WASM automatically loads from `cap_wasm_bg.wasm` in the same directory. For example, `https://cap.example.com/assets/widget.js` uses `https://cap.example.com/assets/cap_wasm_bg.wasm`. Override this with `tx_typo3cap.wasmUrl` or `CAP_WASM_URL` if your file is elsewhere. The handler sets Cap's WASM URL before the widget loads, including on the initial challenge page. See [Cap's asset server documentation](https://capjs.js.org/guide/standalone/options#asset-server).
 
 The asset server exposes four files. This extension uses Cap's invisible programmatic mode:
 
@@ -87,8 +92,8 @@ The pinned widget includes its own WASM bindings and loads the binary directly, 
 
 A Content Security Policy must permit the widget, handler, solver resources, and Cap's blob workers; see [Cap's widget documentation](https://capjs.js.org/guide/widget.html). Two settings cover what the browser needs, and both are on by default:
 
-- `cspNonce` hands the request's CSP nonce to the widget. Cap injects its stylesheet into a shadow root, where an inline `<style>` is only accepted with a nonce, and it reads that nonce from `window.CAP_CSS_NONCE`. The same nonce also carries the inline script that sets `window.CAP_CUSTOM_WASM_URL`, so no `'unsafe-hashes'` source is needed. Requires TYPO3 v13, which issues the nonce; on v12 no nonce exists and the script is emitted without one. The policy still has to list `'nonce-proxy'` for `style-src`, otherwise TYPO3 has no nonce to issue and the widget renders unstyled.
-- `cspSources` adds the origin of `widgetUrl` and `wasmUrl` to `script-src`, `script-src-elem` and `connect-src`, plus `'wasm-unsafe-eval'` to `script-src`, because the widget compiles its proof-of-work solver with WebAssembly. That origin is configuration and differs per environment, so it cannot be hardcoded in the site's policy. Set it to `0` to manage the sources in the site's policy instead.
+- `cspNonce` hands the request's CSP nonce to Cap. In the widget/form flow it is set as `window.CAP_CSS_NONCE`, because the widget injects its stylesheet into a shadow root, where an inline `<style>` is only accepted with a nonce; the same nonce also carries the inline script that sets `window.CAP_CUSTOM_WASM_URL`, so no `'unsafe-hashes'` source is needed. In the invisible middleware flow it is additionally set as `window.CAP_SCRIPT_NONCE` (and `window.CAP_CSS_NONCE`) before the Cap library executes, so the sandboxed `srcdoc` iframe in which Cap's instrumentation runs — and which inherits the page CSP — can execute its inline scripts under a strict, nonce-based policy. Requires TYPO3 v13, which issues the nonce; on v12 no nonce exists and the scripts are emitted without one. The policy still has to list `'nonce-proxy'` for `style-src`, otherwise TYPO3 has no nonce to issue and the widget renders unstyled.
+- `cspSources` adds the origin of `widgetUrl` and `wasmUrl` to `script-src`, `script-src-elem` and `connect-src`, plus `'wasm-unsafe-eval'` and `'unsafe-eval'` to `script-src`: the widget compiles its proof-of-work solver with WebAssembly, and Cap's instrumentation challenge verifies the JS engine with `eval()` and `new Function()`. That origin is configuration and differs per environment, so it cannot be hardcoded in the site's policy. Set it to `0` to manage the sources in the site's policy instead.
 
 Without either setting, a strict policy leaves the widget unstyled and it silently falls back to Cap's default jsDelivr URLs.
 
