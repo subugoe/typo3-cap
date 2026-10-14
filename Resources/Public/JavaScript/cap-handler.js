@@ -205,7 +205,7 @@
         function needsProof(href) {
             var url = sameOriginUrl(href);
             if (!url || ['captcha_proxy', 'typo3_cap_asset'].includes(url.searchParams.get('eID'))) {
-                return Promise.resolve(null);
+                return Promise.resolve(false);
             }
             url.hash = '';
             if (!checks.has(url.href)) {
@@ -213,10 +213,7 @@
                 checks.set(url.href, nativeFetch(url.href, {
                     method: 'HEAD', headers: { 'X-Typo3-Cap-Probe': '1' }, cache: 'no-store'
                 }).then(function (response) {
-                    return {
-                        required: response.headers.get('X-Typo3-Cap-Required') === '1',
-                        instrumented: response.headers.get('X-Typo3-Cap-Instrumented') === '1'
-                    };
+                    return response.headers.get('X-Typo3-Cap-Required') === '1';
                 }).catch(function (error) {
                     checks.delete(url.href);
                     throw error;
@@ -225,15 +222,12 @@
             return checks.get(url.href);
         }
 
-        function requestProof(instrumented, cancelled) {
+        function requestProof(cancelled) {
             var result = queue.then(function () {
                 if (cancelled()) return null;
                 return waitForLibrary().then(function () {
                     if (cancelled()) return null;
-                    var cap = new window.Cap({
-                        apiEndpoint: config.apiEndpoint,
-                        'data-cap-worker-count': '1'
-                    });
+                    var cap = new window.Cap({ apiEndpoint: config.apiEndpoint, 'data-cap-worker-count': '1' });
                     var timeout;
                     return Promise.race([
                         Promise.resolve().then(function () { return cap.solve(); }),
@@ -272,11 +266,11 @@
                 });
             }
             batch.members.push(cancelled);
-            return needsProof(href).then(function (probe) {
-                if (!probe || !probe.required || cancelled()) return null;
+            return needsProof(href).then(function (required) {
+                if (!required || cancelled()) return null;
                 if (!batch.proof) {
                     batch.proof = batch.closed.then(function () {
-                        return requestProof(probe.instrumented, function () {
+                        return requestProof(function () {
                             return batch.members.every(function (isCancelled) { return isCancelled(); });
                         });
                     });

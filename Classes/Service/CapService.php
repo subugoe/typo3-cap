@@ -26,7 +26,6 @@ final class CapService
             'secretKey' => ['CAP_SECRET_KEY', ''],
             'serviceUrl' => ['CAP_SERVICE_URL', 'http://cap:3000'],
             'protectedPaths' => ['CAP_PROTECTED_PATHS', ''],
-            'extraProtectedPaths' => ['CAP_EXTRA_PROTECTED_PATHS', ''],
             'cookieName' => ['CAP_COOKIE_NAME', 'typo3_cap_token'],
             'widgetUrl' => ['CAP_WIDGET_URL', 'https://cdn.jsdelivr.net/npm/@cap.js/widget@0.1.57/cap.min.js'],
             'wasmUrl' => ['CAP_WASM_URL', ''],

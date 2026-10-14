@@ -25,7 +25,6 @@ tx_typo3cap {
     siteKey = your-site-key
     serviceUrl = http://cap:3000
     protectedPaths = /comma/,/separated/,/pages/
-    extraProtectedPaths = /extra/,/protected/
 }
 ```
 
@@ -39,7 +38,6 @@ CAP_SITE_KEY=your-site-key
 CAP_SECRET_KEY=your-secret-key
 CAP_SERVICE_URL=http://cap:3000
 CAP_PROTECTED_PATHS=/comma/,/separated/,/pages/
-CAP_EXTRA_PROTECTED_PATHS=/extra/,/protected/
 ```
 
 The service URL is reachable from PHP; browsers use the extension's same-origin proxy. The proxy accepts only POST requests to `challenge` and `redeem`. The server secret stays in PHP.
@@ -55,7 +53,6 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_SECRET_KEY` | `secretKey` | empty |
 | `CAP_SERVICE_URL` | `serviceUrl` | `http://cap:3000` |
 | `CAP_PROTECTED_PATHS` | `protectedPaths` | empty |
-| `CAP_EXTRA_PROTECTED_PATHS` | `extraProtectedPaths` | empty |
 | `CAP_COOKIE_NAME` | `cookieName` | `typo3_cap_token` |
 | `CAP_TIMEOUT` | `timeout` | 5 seconds per upstream request |
 | `CAP_TOKEN_TTL` | `tokenTtl` | 300 seconds |
@@ -66,8 +63,6 @@ All Page TSconfig keys below use the prefix `tx_typo3cap.`:
 | `CAP_CSP_SOURCES` | `cspSources` | `true` |
 
 Fallback applies per setting. Explicit values such as `enabled = 0` or an empty `protectedPaths` override the environment too. Environment lookup supports `$_ENV`, `$_SERVER`, and `getenv()`. No static template is required, and the extension does not register default Page TSconfig values that would mask environment values.
-
-`extraProtectedPaths` accepts the same comma-separated prefixes or `#`-delimited PCRE expressions as `protectedPaths`. Requests matching these paths are protected like `protectedPaths` paths. Cap's programmatic `cap.solve()` automatically executes both the proof-of-work **and Cap's instrumentation** (which verifies the browser's JS engine) whenever the Cap server's `/challenge` response contains instrumentation data — that is controlled by the site-key configuration on the Cap Standalone server, not by this extension; no widget, no user interaction. This extension's role is to signal which requests must expect instrumentation through a `X-Typo3-Cap-Instrumented` header on the HEAD probe and an `instrumented` flag in the handler's `data-config`, and to scope the resulting tokens separately: an instrumented proof cannot be replayed for a regular protected path and vice versa. Because Cap's instrumentation uses `eval()` and `new Function()`, instrumentation requires `'unsafe-eval'` and `'wasm-unsafe-eval'` in `script-src`; both are added automatically when `cspSources` is enabled (the default). An empty `extraProtectedPaths` keeps the regular `protectedPaths` behavior unchanged.
 
 The middleware uses TYPO3's standard Page TSconfig API on both TYPO3 12.4 and 13.4, after site resolution and before eID handling or page rendering. Configure Cap at the site root using unconditional values. This keeps proof verification and background challenges consistent across pages, languages, and redirects.
 
